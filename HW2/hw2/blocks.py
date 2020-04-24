@@ -76,7 +76,7 @@ class Linear(Block):
         # TODO: Create the weight matrix (w) and bias vector (b).
         # ====== YOUR CODE: ======
         self.w = torch.normal(0, std=wstd, size=(out_features, in_features))
-        self.b = torch.ones(out_features)
+        self.b = torch.normal(0, std= wstd, size=(1,out_features))
         # ========================
 
         self.dw = torch.zeros_like(self.w)
@@ -231,10 +231,8 @@ class CrossEntropyLoss(Block):
         Computes cross-entropy loss directly from class scores.
         Given class scores x, and a 1-hot encoding of the correct class yh,
         the cross entropy loss is defined as: -yh^T * log(softmax(x)).
-
         This implementation works directly with class scores (x) and labels
         (y), not softmax outputs or 1-hot encodings.
-
         :param x: Tensor of shape (N,D) where N is the batch
         dimension, and D is the number of features. Should contain class
         scores, NOT PROBABILITIES.
@@ -302,7 +300,14 @@ class Dropout(Block):
         #  Notice that contrary to previous blocks, this block behaves
         #  differently a according to the current training_mode (train/test).
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        if self.training_mode:
+            mask = torch.bernoulli((1-self.p) * torch.ones_like(x))
+            self.grad_cache['mask'] = mask
+            out = (1.0/(1-self.p)) * x * mask
+
+        else:
+            out = x
+
         # ========================
 
         return out
@@ -310,7 +315,12 @@ class Dropout(Block):
     def backward(self, dout):
         # TODO: Implement the dropout backward pass.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        if self.training_mode:
+            mask = self.grad_cache['mask']
+            dx = mask * dout * (1.0/(1-self.p))
+
+        else:
+            dx = dout
         # ========================
 
         return dx
@@ -384,14 +394,11 @@ class Sequential(Block):
     def __getitem__(self, item):
         return self.blocks[item]
 
-
 class MLP(Block):
     """
     A simple multilayer perceptron based on our custom Blocks.
     Architecture is (with ReLU activation):
-
         FC(in, h1) -> ReLU -> FC(h1,h2) -> ReLU -> ... -> FC(hn, num_classes)
-
     Where FC is a fully-connected layer and h1,...,hn are the hidden layer
     dimensions.
     If dropout is used, a dropout layer is added after every activation
@@ -415,15 +422,23 @@ class MLP(Block):
         # TODO: Build the MLP architecture as described.
         # ====== YOUR CODE: ======
         act = {'relu' : ReLU, 'sigmoid' : Sigmoid}
+        hp = kw['wstd'] if ('wstd' in kw) else None
 
         blocks.append(Linear(in_features, hidden_features[0]))
         blocks.append(act[activation]())
+        if dropout > 0:
+            blocks.append(Dropout(dropout))
 
         for idx in range(len(hidden_features)-1):
             blocks.append(Linear(hidden_features[idx],hidden_features[idx+1]))
             blocks.append(act[activation]())
+            if dropout > 0:
+                blocks.append(Dropout(dropout))
 
-        blocks.append(Linear(hidden_features[-1], num_classes))
+        if(hp == None):
+            blocks.append(Linear(hidden_features[-1], num_classes))
+        else:
+            blocks.append(Linear(hidden_features[-1], num_classes,hp))
         # ========================
 
         self.sequence = Sequential(*blocks)

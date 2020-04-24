@@ -73,7 +73,31 @@ class Trainer(abc.ABC):
             #    save the model to the file specified by the checkpoints
             #    argument.
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
+            train_epoch_res = self.train_epoch(dl_train,verbose=verbose)
+            curr_train_loss = sum(train_epoch_res.losses) / len(train_epoch_res.losses)
+            train_loss.append(curr_train_loss)
+            train_acc.append(train_epoch_res.accuracy)
+
+            test_epoch_res = self.test_epoch(dl_test, verbose = verbose)
+            curr_test_loss = sum(test_epoch_res.losses) / len(test_epoch_res.losses)
+            test_loss.append(curr_train_loss)
+            test_acc.append(test_epoch_res.accuracy)
+            if(best_acc == None):
+                best_acc = test_epoch_res.accuracy
+            else:
+                best_acc = test_epoch_res.accuracy if test_epoch_res.accuracy > best_acc else best_acc
+
+            if(early_stopping != None and train_loss[-2] < test_acc[-1]):
+                epochs_without_improvement+=1
+            else:
+                epochs_without_improvement = 0
+
+            if(early_stopping != None and epochs_without_improvement >= early_stopping):
+                actual_num_epochs = epoch
+                break
+
+        if(checkpoints):
+            torch.save(self.model, checkpoints)
             # ========================
 
         return FitResult(actual_num_epochs,
@@ -189,17 +213,18 @@ class BlocksTrainer(Trainer):
         #  - Optimize params
         #  - Calculate number of correct predictions
         # ====== YOUR CODE: ======
-        self.model.train()
-        x = X.reshape(X.shape[0], -1)
-        y_hat = self.model(x)
+        self.model.train(True)
+
+        y_hat = self.model(X)
         loss = self.loss_fn(y_hat, y)
         self.optimizer.zero_grad()
-        self.model.backward(self.loss_fn.backward())
+
+        dout = self.loss_fn.backward()
+        self.model.backward(dout)
+
         self.optimizer.step()
-        #num_correct = (torch.argmax(y_hat, dim=1) == y).sum().item()
-        _, y_hat_indices = torch.max(y_hat.data, 1)
-        _, y_indices = torch.max(y.data, 0)
-        num_correct = (y_hat_indices == y_indices).sum()
+        loss = loss.item()
+        num_correct = torch.sum(y == torch.argmax(y_hat, dim=1)).item()
         # ========================
 
         return BatchResult(loss, num_correct)
@@ -211,7 +236,12 @@ class BlocksTrainer(Trainer):
         #  - Forward pass
         #  - Calculate number of correct predictions
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        self.model.train(False)
+        y_hat = self.model(X)
+        loss = self.loss_fn(y_hat, y)
+        loss = loss.item()
+
+        num_correct = torch.sum(y == torch.argmax(y_hat, dim=1)).item()
         # ========================
 
         return BatchResult(loss, num_correct)
