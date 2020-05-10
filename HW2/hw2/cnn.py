@@ -45,7 +45,16 @@ class ConvClassifier(nn.Module):
         #  Note: If N is not divisible by P, then N mod P additional
         #  CONV->ReLUs should exist at the end, without a MaxPool after them.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        P = self.pool_every
+        N = len(self.channels)
+        num_conv = 1
+
+        for in_c, out_c in zip([in_channels] + self.channels, self.channels):
+            layers.append(nn.Conv2d(in_c, out_c, kernel_size=(3, 3), padding=1))
+            layers.append(nn.ReLU())
+            if not num_conv % P:
+                layers.append(nn.MaxPool2d(2))
+            num_conv += 1
 
         # ========================
         seq = nn.Sequential(*layers)
@@ -61,7 +70,16 @@ class ConvClassifier(nn.Module):
         #  the first linear layer.
         #  The last Linear layer should have an output dim of out_classes.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        N = len(self.channels)
+        P = self.pool_every
+        in_features = self.channels[-1] * (in_w // (2 ** (N // P))) * (in_h // (2 ** (N // P)))
+
+        for l_in, l_out in zip([in_features] + self.hidden_dims, self.hidden_dims):
+            layers.append(nn.Linear(l_in, l_out))
+            layers.append(nn.ReLU())
+
+        layers.append(nn.Linear(self.hidden_dims[-1], self.out_classes))
+
         # ========================
         seq = nn.Sequential(*layers)
         return seq
@@ -71,7 +89,9 @@ class ConvClassifier(nn.Module):
         #  Extract features from the input, run the classifier on them and
         #  return class scores.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        features = self.feature_extractor(x)
+        features = features.view(features.size(0), -1)
+        out = self.classifier(features)
         # ========================
         return out
 
@@ -116,7 +136,30 @@ class ResidualBlock(nn.Module):
         #  - Don't create layers which you don't use. This will prevent
         #    correct comparison in the test.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        main_path, shortcut_path = [], []
+        N = len(channels)
+
+        idx = 0
+        for in_c, out_c in zip([in_channels] + channels, channels):
+            main_path.append(nn.Conv2d(in_c, out_c, kernel_size=kernel_sizes[idx], padding=kernel_sizes[idx] // 2))
+            if dropout and idx < N - 1:
+                main_path.append(nn.Dropout2d(p=dropout))
+
+            if batchnorm and idx < N - 1:
+                main_path.append(nn.BatchNorm2d(out_c))
+
+            if idx < N - 1:
+                main_path.append(nn.ReLU())
+
+            idx += 1
+
+        self.main_path = nn.Sequential(*main_path)
+
+        if in_channels != channels[-1]:
+            shortcut_path.append(nn.Conv2d(in_channels, channels[-1], kernel_size=1, bias=False))
+
+        self.shortcut_path = nn.Sequential(*shortcut_path)
+
         # ========================
 
     def forward(self, x):
@@ -147,10 +190,92 @@ class ResNetClassifier(ConvClassifier):
         #    without a MaxPool after them.
         #  - Use your ResidualBlock implemetation.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        P = self.pool_every
+        N = len(self.channels)
+        idx = 1
+
+        curr_channels = []
+        residual_input = in_channels
+
+        for conv_dim in self.channels:
+            curr_channels.append(conv_dim)
+            if not idx % P:
+                layers.append(ResidualBlock(residual_input, curr_channels, [3] * P))
+                layers.append(nn.MaxPool2d(kernel_size=(2, 2)))
+                residual_input = conv_dim
+                curr_channels = []
+            idx += 1
+
+        if N % P:
+            layers.append(ResidualBlock(residual_input, curr_channels, [3] * len(curr_channels)))
         # ========================
         seq = nn.Sequential(*layers)
         return seq
+
+#====New calsses====
+
+class CustomConv2d(nn.Module):
+    """
+    Based on insection model(as proposed) - make 1x1, 3x3 and 5x5 convolution and return average of them
+    """
+    def __init__(self, in_channels, out_channels, ):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=(1,1), padding=0)
+        self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size=(3,3), padding=1)
+        self.conv3 = nn.Conv2d(in_channels, out_channels, kernel_size=(5,5), padding=2)
+        self.bath_norm = nn.BatchNorm2d(out_channels)
+
+    def forward(self, x):
+        out1 = self.conv1(x)
+        out2 = self.conv2(x)
+        out3 = self.conv3(x)
+        out = (1/3) * (out1 + out2 + out3)
+        out = self.bath_norm(out)
+        return out
+
+
+class CustomResidualBlock(nn.Module):
+
+    def __init__(self, in_channels: int, channels: list, kernel_sizes: list,
+                 batchnorm=True, dropout=0.2):
+        super().__init__()
+        assert channels and kernel_sizes
+        assert len(channels) == len(kernel_sizes)
+        assert all(map(lambda x: x % 2 == 1, kernel_sizes))
+
+        self.main_path, self.shortcut_path = None, None
+
+        main_path, shortcut_path = [], []
+        N = len(channels)
+
+        idx = 0
+        for in_c, out_c in zip([in_channels] + channels, channels):
+            main_path.append(CustomConv2d(in_c, out_c))
+            if dropout and idx < N - 1:
+                main_path.append(nn.Dropout2d(p=dropout))
+
+            if batchnorm and idx < N - 1:
+                main_path.append(nn.BatchNorm2d(out_c))
+
+            if idx < N - 1:
+                main_path.append(nn.ReLU())
+
+            idx += 1
+
+        self.main_path = nn.Sequential(*main_path)
+
+        if in_channels != channels[-1]:
+            shortcut_path.append(nn.Conv2d(in_channels, channels[-1], kernel_size=1, bias=False))
+
+        self.shortcut_path = nn.Sequential(*shortcut_path)
+
+    def forward(self, x):
+        out = self.main_path(x)
+        out += self.shortcut_path(x)
+        out = torch.relu(out)
+        return out
 
 
 class YourCodeNet(ConvClassifier):
@@ -159,10 +284,54 @@ class YourCodeNet(ConvClassifier):
         super().__init__(in_size, out_classes, channels, pool_every,
                          hidden_dims)
 
-    # TODO: Change whatever you want about the ConvClassifier to try to
-    #  improve it's results on CIFAR-10.
-    #  For example, add batchnorm, dropout, skip connections, change conv
-    #  filter sizes etc.
-    # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    def _make_feature_extractor(self):
+        in_channels, in_h, in_w, = tuple(self.in_size)
+
+        layers = []
+        P = self.pool_every
+        N = len(self.channels)
+        idx = 1
+
+        curr_channels = []
+        residual_input = in_channels
+
+        for conv_dim in self.channels:
+            curr_channels.append(conv_dim)
+            if not idx % P:
+                layers.append(CustomResidualBlock(residual_input, curr_channels, [3] * P))
+                layers.append(nn.MaxPool2d(kernel_size=(2, 2)))
+                residual_input = conv_dim
+                curr_channels = []
+            idx += 1
+
+        if N % P:
+            layers.append(CustomResidualBlock(residual_input, curr_channels, [3] * len(curr_channels)))
+
+        seq = nn.Sequential(*layers)
+        return seq
+
+    def _make_classifier(self):
+        in_channels, in_h, in_w, = tuple(self.in_size)
+
+        layers = []
+
+        N = len(self.channels)
+        P = self.pool_every
+        in_features = self.channels[-1] * (in_w // (2 ** (N // P))) * (in_h // (2 ** (N // P)))
+
+        for l_in, l_out in zip([in_features] + self.hidden_dims, self.hidden_dims):
+            layers.append(nn.Linear(l_in, l_out))
+            layers.append(nn.ReLU())
+
+        layers.append(nn.Linear(self.hidden_dims[-1], self.out_classes))
+
+        seq = nn.Sequential(*layers)
+        return seq
+
+    def forward(self, x):
+
+        features = self.feature_extractor(x)
+        features = features.view(features.size(0), -1)
+        out = self.classifier(features)
+        return out
     # ========================

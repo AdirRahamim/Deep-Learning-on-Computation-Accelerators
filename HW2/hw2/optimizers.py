@@ -89,7 +89,7 @@ class MomentumSGD(Optimizer):
 
         # TODO: Add your own initializations as needed.
         # ====== YOUR CODE: ======
-        self.v = [torch.zeros_like(params[i][0]) for i in range(len(params))]
+        self.v = [torch.zeros_like(dp) for _,dp in self.params]
         self.current = 0
         # ========================
 
@@ -102,9 +102,9 @@ class MomentumSGD(Optimizer):
             # update the parameters tensor based on the velocity. Don't forget
             # to include the regularization term.
             # ====== YOUR CODE: ======
-            dp.add_(self.reg * p)
+            dp += (self.reg * p)
             self.v[self.current] = self.momentum * self.v[self.current] - self.learn_rate * dp
-            p.add_(self.v[self.current])
+            p += self.v[self.current]
             self.current += 1
             if self.current == len(self.params):
                 self.current = 0
@@ -127,7 +127,7 @@ class RMSProp(Optimizer):
 
         # TODO: Add your own initializations as needed.
         # ====== YOUR CODE: ======
-        self.r = [(1-self.decay) * self.params[i][0]**2 for i in range(len(params))]
+        self.r = [torch.zeros_like(dp) for _ , dp in params if dp is not None]
         self.current = 0
         # ========================
 
@@ -141,10 +141,10 @@ class RMSProp(Optimizer):
             # average of it's previous gradients. Use it to update the
             # parameters tensor.
             # ====== YOUR CODE: ======
-            dp.add_(self.reg * p)
-            self.r[self.current] = self.decay * self.r[self.current] +(1-self.decay) * dp ** 2
+            dp += self.reg * p
+            self.r[self.current] = self.decay * self.r[self.current] +(1-self.decay) * (dp ** 2)
 
-            p.add_(-(torch.div(self.learn_rate,torch.sqrt(self.r[self.current]+self.eps)))*dp)
+            p -= (torch.div(self.learn_rate,torch.sqrt(self.r[self.current]+self.eps)))*dp
             self.current += 1
             if self.current == len(self.params):
                 self.current = 0

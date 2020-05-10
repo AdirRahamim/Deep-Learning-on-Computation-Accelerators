@@ -73,24 +73,26 @@ class Trainer(abc.ABC):
             #    save the model to the file specified by the checkpoints
             #    argument.
             # ====== YOUR CODE: ======
-            train_epoch_res = self.train_epoch(dl_train,verbose=verbose)
+            curr_acc = None
+            last_acc = None
+
+            train_epoch_res = self.train_epoch(dl_train,verbose=verbose, **kw)
             curr_train_loss = sum(train_epoch_res.losses) / len(train_epoch_res.losses)
             train_loss.append(curr_train_loss)
             train_acc.append(train_epoch_res.accuracy)
 
-            test_epoch_res = self.test_epoch(dl_test, verbose = verbose)
+            test_epoch_res = self.test_epoch(dl_test, verbose = verbose, **kw)
             curr_test_loss = sum(test_epoch_res.losses) / len(test_epoch_res.losses)
-            test_loss.append(curr_train_loss)
+            test_loss.append(curr_test_loss)
             test_acc.append(test_epoch_res.accuracy)
             if(best_acc == None):
                 best_acc = test_epoch_res.accuracy
             else:
-                best_acc = test_epoch_res.accuracy if test_epoch_res.accuracy > best_acc else best_acc
-
-            if(early_stopping != None and train_loss[-2] < test_acc[-1]):
-                epochs_without_improvement+=1
-            else:
-                epochs_without_improvement = 0
+                if test_epoch_res.accuracy > best_acc:
+                    best_acc = test_epoch_res.accuracy
+                    epochs_without_improvement = 0
+                else:
+                    epochs_without_improvement += 1
 
             if(early_stopping != None and epochs_without_improvement >= early_stopping):
                 actual_num_epochs = epoch
@@ -263,7 +265,16 @@ class TorchTrainer(Trainer):
         #  - Optimize params
         #  - Calculate number of correct predictions
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        self.model.train(True)
+
+        y_hat = self.model(X)
+        loss = self.loss_fn(y_hat, y)
+        self.optimizer.zero_grad()  
+        loss.backward()
+        self.optimizer.step()
+        loss = loss.item()
+        num_correct = torch.sum(y == torch.argmax(y_hat, dim=1)).item()
+
         # ========================
 
         return BatchResult(loss, num_correct)
@@ -279,7 +290,12 @@ class TorchTrainer(Trainer):
             #  - Forward pass
             #  - Calculate number of correct predictions
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
+            self.model.train(False)
+            y_hat = self.model(X)
+            loss = self.loss_fn(y_hat, y)
+            loss = loss.item()
+
+            num_correct = torch.sum(y == torch.argmax(y_hat, dim=1)).item()
             # ========================
 
         return BatchResult(loss, num_correct)

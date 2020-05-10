@@ -13,7 +13,7 @@ def part2_overfit_hp():
     wstd, lr, reg = 0, 0, 0
     # TODO: Tweak the hyperparameters until you overfit the small dataset.
     # ====== YOUR CODE: ======
-    wstd, lr, reg = 0.6, 5e-3, 1e-3
+    wstd, lr, reg = 0.2, 5e-3, 1e-3
     # ========================
     return dict(wstd=wstd, lr=lr, reg=reg)
 
@@ -24,7 +24,7 @@ def part2_optim_hp():
     # TODO: Tweak the hyperparameters to get the best results you can.
     # You may want to use different learning rates for each optimizer.
     # ====== YOUR CODE: ======
-    wstd, lr_vanilla, lr_momentum, lr_rmsprop, reg, = 0.15, 5e-3, 5e-3, 1e-4, 1e-4
+    wstd, lr_vanilla, lr_momentum, lr_rmsprop, reg, = 0.1, 0.031, 0.0029, 0.00033, 0.00015
     # ========================
     return dict(wstd=wstd, lr_vanilla=lr_vanilla, lr_momentum=lr_momentum,
                 lr_rmsprop=lr_rmsprop, reg=reg)
@@ -35,25 +35,30 @@ def part2_dropout_hp():
     # TODO: Tweak the hyperparameters to get the model to overfit without
     # dropout.
     # ====== YOUR CODE: ======
-    wstd, lr = 0.1, 1e-4
+    wstd, lr = 0.1, 0.003
     # ========================
     return dict(wstd=wstd, lr=lr)
 
 
 part2_q1 = r"""
-**Your answer:**
+**Dropout is a technique used to avoid overfitting, thus we could expect the non-dropout graph will overfit the train 
+data(high train accuracy - almost 100% !) and will have higher test-set loss than the dropout version
+(and also lower test-set accuracy than the dropout version).
+And indeed, we can see than the non-dropout version have higher test-set loss and average test-set accuracy(lower than 
+dropout = 0.4), so the results most of the time much my expectations(except for test loss with dropout=0.8)
+First, we can see dropout p=0.8 is too high, as it is far behind the other two, possibly we dropout too many neurons 
+and the learning time is too low.
+For dropout p=0.4 we can see that train-set accuracy is lower than non dropout, but test-set accuracy is the highest,
+so a dropout value in the middle of 0.4 is a good choice for generalize the model.**
 """
 
 part2_q2 = r"""
-*Your answer:*
-Generally yes, this phenomena is indeed possible and could happen as the accuracy is binary and only measures the
-percentage of correct lables, while the cross-entropy loss measures how "strongly" the prediction is (i.e. in terms of
-the values of the softmax output).
-Let us look at a case where some samples are now being classified correctly and cause an increase in accuracy
-and in turn a decrease in loss, while in parallel, a big chuck of data is still being labeled the same (supposedly even
-correct) label, but with lss confidence (e.g. predicting a true label of a cow but with 0.6% instead of 0.9% like it was
-before). The latter would cause an increae in loss while not effecting accuracy. Hence, together the two could potentially
-cause an increase in accuracy together with an increase in loss.
+**Yes, this scenario is possible.
+ The accuracy only measures the number of correct predictions(correct or wrong), i.e the maximum of of the class score 
+ is the correct prediction, where the cross-entropy loss measures how "strong" the prediction is. 
+ For example for a class with two labels and the following scores for the correct labels: {0.49,100}, we will get 
+ accuracy of 50% and low loss, but if next epoch we get the next result: {0.51,0.51} we get accuracy of 100% -> accuracy
+ increased, but the loss also increased as the true label score of the second label dramatically got lower.**
 
 """
 # ==============
@@ -62,36 +67,73 @@ cause an increase in accuracy together with an increase in loss.
 # Part 3 answers
 
 part3_q1 = r"""
-*Your answer:*
-1. Regarding the network depth, to our understanding, too little layers overfitted the data pretty quickly (wasn't expressive enough), while having too many layer didn't even manage to learn (we'll discuss this later), and the sweet spot in this configuration was 4 layers which proved better then the 8 layers in both K configurations (32, 64).
-2. For 16 layers the network didn't suceed in training, to our understanding due to the amount of max-pooling, shrinking the input to an almost non-diffrentiable vector, not allowing the network to distinguish between the different inputs (hence converging to a the naive 10% random guess in a 10 class data set). This could be avoided either by reducing the number of max-pooling layers or adding up-scaling layers to keep the spatial diversity.
-
+**
+(1)
+With a very deep net we will expect it will be hard for the network to learn the data, and indeed with L=16 in our 
+experiment, the network couldn't achieve any learning under our experiment conditions, because of vanishing gradient and
+too small training set, the best test-set accuracy achieved in not too depth but not too small network - L=4, 
+with about 10 epochs to converge.
+(2)
+For L=16 the network couldn't learn and stopped the training process in the beginning. The reason that we had no learning 
+in the deep network is the known vanishing gradient problem, which make the gradient to zero or explode at some point.
+Two possible additions to the network that can alleviate this problem are batch normalization and the add of skip
+connections, as we learned both this methods are very helpful in training deep networks and overcome vanishing gradient.    
+**
 """
 
 part3_q2 = r"""
-*Your answer:*
-For shallower networks (2) using less filters proved better (hence a thinner configuration) but overall not a very sucessful one in terms of accuracy, while when making the network deeper, adding more filters improved the network and all in all for both the 8 and 4 layers, 128 feature maps seemed to be the sweet point in accuracy (while not too far from the 256). Comparing to section 1.1, these wider architectures proved better then the thinner ones we used in section 1.1.
-
+**
+First, we can see that for all values of L the greater number of filters(K = 128/258) achieved the best results, and
+in both tests configuration the narrow networks(with K=32) achieved the worst results.
+We can explain this because it has more parameters to learn in each layer and thus can achieve better results.
+For L=2: we can see that for K=128 best test-set accuracy achieved, better than K=32/64 values in Exp 1.1.
+For L=4: we can see that for K=256 best test-set accuracy achieved, again, better than K=32/64 values in Exp 1.1.
+For L=8: we can see that for K=128 best test-set accuracy achieved.
+They all converged after about 10 epochs.
+Compare to experiment 1.1: In general, the wider architectures, with K=128/256, achieved better results compare to the
+thinner architectures in experiment 1.1, with K=32/64, as I explained above wider networks have more parameters to learn
+in each layer.
+**
 """
 
 part3_q3 = r"""
-*Your answer:*
-
-In these set of tests we tested the same K block and for different network depths. In the very deep configuration we saw the same phenomena as in section 1.1 with the deepest configuration and other than that the middle configuration, with 9 layers total, allowed the network to achive best results before starting to over-fit. the 6 layer one overfitted the data pretty quickly and overall this configurations weren't as good as the ones in section 1.2 possibly because of the "saw tooth" type of block, increasing the filters number to 256 and then dropping back to 64 and again raising to 256 (but this is purely a speculation).
-
+**
+The best test-set accuracy achieved for L=2. It seems that with various number of filters network the deeper network 
+achieved a little less good results, perhaps because for deeper networks the learning takes more time.
+We can see the using complicated network with various filters achieved 
+better results in about 5% compared to experiment 1.2.
+Converges took about 10 epochs.
+**
 """
 
 part3_q4 = r"""
-*Your answer:*
-First off, the results for the resnet architecture were all together better then the previous configurations, and it also allowed larger networks to perform better (maybe due to its ability to maintain a memory of the original input over several layer with the skip layer), that said, we also saw it took it longer to train (makes sense).
-
+**
+We can see that the ResNet networks have better performance compared to the Conv classifier. 
+In the first test, with K=32, again best accuracy achieved for the shallow network with L=8, and again for various number
+of filter network, with K=[64-128-256], we got best accuracy not for the deepest network, but rather for the shallow
+ network with L=2. It seems than in our tests the deeper networks learning is slower than the shallow networks.
+In 1.1 experiment results for all values of L the results were pretty close with slight difference, here the difference 
+is more noticeable, and as mentioned before, the results using ResNet are better compared to Exp 1.1.
+Same as in experiment 1.3, we can see that the more wider network achieved better performance, but this time the best
+results in both experiment is very close. 
+**
 """
 
 part3_q5 = r"""
-*Your answer:*
-1. In our architecture, and honestly without too much intuition, we mainly tried to reduce the number of max pooling to allow deeper networks (hence we max-pooled every other block) and also added a decent amount of dropout to allow more generalization. Other than that we kept the resnet block the same and the fc layers as before. We also tried playing around with different amounts of dropout but without any conclusive results.
-
-2. Overall, with the very deep architecture we still didn't manage to perform better than before, but with the 18-layer configuration we did manage to cross the section 1.4 resnet results slightly and if we had more time we think playing with hyperparameters and increasing the early-stopping threshold a bit we could do even better.
-
+**
+(1)
+I used the idea from the inception module and defined a custom convolution block, which was composed of 3 convolution 
+with different kernels - 1,3 and 5, and the final output of the block was their weighted sum after batch normalization. 
+Additionally, I used other techniques from ResNet such as skip connections, max pooling, batch normalization and 
+dropout.
+(2)
+The best result in the experiment achieved for L=6 and L=3, again same as in experiment 1, shallow networks achieved 
+better results. Converges took about 15 epochs.
+Compared to experiment 1: In Exp.1.1 all different experiments were pretty similar, however here the difference is more
+noticeable, in this experiment for L=16 we didnt had learning, here using all parameters we had learning,
+and all the results are better compared to 1.1 results.
+The results seem to be more stable compared to the experiments in Exp.1, the changes are less sharpen and we have smaller
+glitches compared to Exp.1. 
+**
 """
 # ==============

@@ -422,23 +422,22 @@ class MLP(Block):
         # TODO: Build the MLP architecture as described.
         # ====== YOUR CODE: ======
         act = {'relu' : ReLU, 'sigmoid' : Sigmoid}
-        hp = kw['wstd'] if ('wstd' in kw) else None
 
-        blocks.append(Linear(in_features, hidden_features[0]))
+        blocks.append(Linear(in_features, hidden_features[0], **kw))
         blocks.append(act[activation]())
         if dropout > 0:
             blocks.append(Dropout(dropout))
 
         for idx in range(len(hidden_features)-1):
-            blocks.append(Linear(hidden_features[idx],hidden_features[idx+1]))
+            blocks.append(Linear(hidden_features[idx],hidden_features[idx+1], **kw))
             blocks.append(act[activation]())
             if dropout > 0:
                 blocks.append(Dropout(dropout))
 
-        if(hp == None):
+        if(kw == None):
             blocks.append(Linear(hidden_features[-1], num_classes))
         else:
-            blocks.append(Linear(hidden_features[-1], num_classes,hp))
+            blocks.append(Linear(hidden_features[-1], num_classes,**kw))
         # ========================
 
         self.sequence = Sequential(*blocks)

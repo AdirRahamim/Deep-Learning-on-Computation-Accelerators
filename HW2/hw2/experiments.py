@@ -64,9 +64,22 @@ def run_experiment(run_name, out_dir='./results', seed=None, device=None,
     #   for you automatically.
     fit_res = None
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
-    # ========================
+    in_shape = ds_train[0][0].shape
+    out_shape = 10
+    channels = [filter for filter in filters_per_layer for _ in range(layers_per_block)]
 
+    model = model_cls(in_size=in_shape, out_classes=out_shape, channels=channels, pool_every=pool_every, hidden_dims=hidden_dims)
+    model = model.to(device)
+
+    loss = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    dl_train = DataLoader(ds_train, bs_train,shuffle=True)
+    dl_test = DataLoader(ds_test, bs_test, shuffle=False)
+
+    trainer = training.TorchTrainer(model, loss, optimizer, device)
+    fit_res = trainer.fit(dl_train, dl_test, epochs, checkpoints, early_stopping, max_batches = batches, **kw)
+    # ========================
     save_experiment(run_name, out_dir, cfg, fit_res)
 
 
